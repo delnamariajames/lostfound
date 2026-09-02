@@ -1,5 +1,5 @@
 import React from 'react';
-import { IListing } from '../../server/models/types.js';
+import { IListing } from '../types.ts';
 import { StatusBadge } from './StatusBadge.tsx';
 import { CategoryBadge } from './CategoryBadge.tsx';
 import { MapPin, Calendar, ArrowRight, UserCheck, Search, Sparkles } from 'lucide-react';

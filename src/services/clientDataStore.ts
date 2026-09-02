@@ -1,4 +1,5 @@
-import { IUser, IListing, IClaim, ItemCategory, ListingStatus, ListingType } from '../../server/models/types.js';
+import { IUser, IListing, IClaim, ItemCategory, ListingStatus, ListingType } from '../types.ts';
+import { safeStorage } from '../utils/safeStorage.ts';
 
 const CLIENT_USERS_KEY = 'campus_lf_client_users_v1';
 const CLIENT_LISTINGS_KEY = 'campus_lf_client_listings_v1';
@@ -175,7 +176,7 @@ export const INITIAL_CLIENT_LISTINGS: IListing[] = [
     claimsCount: 0,
     createdAt: new Date(Date.now() - 4 * 24 * 60 * 60 * 1000).toISOString(),
     updatedAt: new Date(Date.now() - 4 * 24 * 60 * 60 * 1000).toISOString(),
-  }
+  },
 ];
 
 export const INITIAL_CLIENT_CLAIMS: IClaim[] = [
@@ -212,65 +213,68 @@ export const INITIAL_CLIENT_CLAIMS: IClaim[] = [
     proofDetails: 'Spoke with lab tech Dave at 4 PM who has it in the safe.',
     status: 'pending',
     createdAt: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000).toISOString(),
-  }
+  },
 ];
 
 export class ClientDataStore {
   private static getUsers(): IUser[] {
-    const raw = localStorage.getItem(CLIENT_USERS_KEY);
+    const raw = safeStorage.getItem(CLIENT_USERS_KEY);
     if (!raw) {
-      localStorage.setItem(CLIENT_USERS_KEY, JSON.stringify(INITIAL_CLIENT_USERS));
+      safeStorage.setItem(CLIENT_USERS_KEY, JSON.stringify(INITIAL_CLIENT_USERS));
       return INITIAL_CLIENT_USERS;
     }
     try {
-      return JSON.parse(raw);
+      const parsed = JSON.parse(raw);
+      return Array.isArray(parsed) && parsed.length > 0 ? parsed : INITIAL_CLIENT_USERS;
     } catch {
       return INITIAL_CLIENT_USERS;
     }
   }
 
   private static setUsers(users: IUser[]): void {
-    localStorage.setItem(CLIENT_USERS_KEY, JSON.stringify(users));
+    safeStorage.setItem(CLIENT_USERS_KEY, JSON.stringify(users));
   }
 
   private static getListings(): IListing[] {
-    const raw = localStorage.getItem(CLIENT_LISTINGS_KEY);
+    const raw = safeStorage.getItem(CLIENT_LISTINGS_KEY);
     if (!raw) {
-      localStorage.setItem(CLIENT_LISTINGS_KEY, JSON.stringify(INITIAL_CLIENT_LISTINGS));
+      safeStorage.setItem(CLIENT_LISTINGS_KEY, JSON.stringify(INITIAL_CLIENT_LISTINGS));
       return INITIAL_CLIENT_LISTINGS;
     }
     try {
-      return JSON.parse(raw);
+      const parsed = JSON.parse(raw);
+      return Array.isArray(parsed) && parsed.length > 0 ? parsed : INITIAL_CLIENT_LISTINGS;
     } catch {
       return INITIAL_CLIENT_LISTINGS;
     }
   }
 
   private static setListings(listings: IListing[]): void {
-    localStorage.setItem(CLIENT_LISTINGS_KEY, JSON.stringify(listings));
+    safeStorage.setItem(CLIENT_LISTINGS_KEY, JSON.stringify(listings));
   }
 
   private static getClaims(): IClaim[] {
-    const raw = localStorage.getItem(CLIENT_CLAIMS_KEY);
+    const raw = safeStorage.getItem(CLIENT_CLAIMS_KEY);
     if (!raw) {
-      localStorage.setItem(CLIENT_CLAIMS_KEY, JSON.stringify(INITIAL_CLIENT_CLAIMS));
+      safeStorage.setItem(CLIENT_CLAIMS_KEY, JSON.stringify(INITIAL_CLIENT_CLAIMS));
       return INITIAL_CLIENT_CLAIMS;
     }
     try {
-      return JSON.parse(raw);
+      const parsed = JSON.parse(raw);
+      return Array.isArray(parsed) ? parsed : INITIAL_CLIENT_CLAIMS;
     } catch {
       return INITIAL_CLIENT_CLAIMS;
     }
   }
 
   private static setClaims(claims: IClaim[]): void {
-    localStorage.setItem(CLIENT_CLAIMS_KEY, JSON.stringify(claims));
+    safeStorage.setItem(CLIENT_CLAIMS_KEY, JSON.stringify(claims));
   }
 
   public static resetToSeed(): void {
-    localStorage.setItem(CLIENT_USERS_KEY, JSON.stringify(INITIAL_CLIENT_USERS));
-    localStorage.setItem(CLIENT_LISTINGS_KEY, JSON.stringify(INITIAL_CLIENT_LISTINGS));
-    localStorage.setItem(CLIENT_CLAIMS_KEY, JSON.stringify(INITIAL_CLIENT_CLAIMS));
+    safeStorage.setItem(CLIENT_USERS_KEY, JSON.stringify(INITIAL_CLIENT_USERS));
+    safeStorage.setItem(CLIENT_LISTINGS_KEY, JSON.stringify(INITIAL_CLIENT_LISTINGS));
+    safeStorage.setItem(CLIENT_CLAIMS_KEY, JSON.stringify(INITIAL_CLIENT_CLAIMS));
   }
 
   // --- AUTH ---

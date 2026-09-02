@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { ItemCategory, ListingType } from '../../server/models/types.js';
+import { ItemCategory, ListingType } from '../types.ts';
 import { useAuth } from '../context/AuthContext.tsx';
 import { api } from '../services/api.ts';
 import { 

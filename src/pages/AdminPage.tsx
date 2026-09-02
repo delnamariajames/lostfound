@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { IListing, IUser } from '../../server/models/types.js';
+import { IListing, IUser } from '../types.ts';
 import { useAuth } from '../context/AuthContext.tsx';
 import { api } from '../services/api.ts';
 import { StatusBadge } from '../components/StatusBadge.tsx';

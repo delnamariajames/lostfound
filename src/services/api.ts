@@ -1,18 +1,19 @@
-import { IUser, IListing, IClaim, ItemCategory, ListingStatus, ListingType } from '../../server/models/types.js';
-import { ClientDataStore } from './clientDataStore.js';
+import { IUser, IListing, IClaim, ItemCategory, ListingStatus, ListingType } from '../types.ts';
+import { ClientDataStore } from './clientDataStore.ts';
+import { safeStorage } from '../utils/safeStorage.ts';
 
 const TOKEN_KEY = 'campus_lf_token';
 const USER_KEY = 'campus_lf_user';
 
 export const authStorage = {
   getToken(): string | null {
-    return localStorage.getItem(TOKEN_KEY);
+    return safeStorage.getItem(TOKEN_KEY);
   },
   setToken(token: string): void {
-    localStorage.setItem(TOKEN_KEY, token);
+    safeStorage.setItem(TOKEN_KEY, token);
   },
   getUser(): IUser | null {
-    const raw = localStorage.getItem(USER_KEY);
+    const raw = safeStorage.getItem(USER_KEY);
     if (!raw) return null;
     try {
       return JSON.parse(raw);
@@ -21,11 +22,11 @@ export const authStorage = {
     }
   },
   setUser(user: IUser): void {
-    localStorage.setItem(USER_KEY, JSON.stringify(user));
+    safeStorage.setItem(USER_KEY, JSON.stringify(user));
   },
   clear(): void {
-    localStorage.removeItem(TOKEN_KEY);
-    localStorage.removeItem(USER_KEY);
+    safeStorage.removeItem(TOKEN_KEY);
+    safeStorage.removeItem(USER_KEY);
   },
 };
 
@@ -76,7 +77,6 @@ async function safeFetchJson<T>(url: string, options: RequestInit = {}): Promise
 
     const json = await res.json();
     if (!res.ok) {
-      // If it's a real API 400/409 validation error, throw the actual message
       if (res.status === 400 || res.status === 409 || res.status === 403 || res.status === 401) {
         throw new Error(json.error || 'Request failed');
       }

@@ -8,7 +8,7 @@ import { ListingDetailPage } from './pages/ListingDetailPage.tsx';
 import { DashboardPage } from './pages/DashboardPage.tsx';
 import { AdminPage } from './pages/AdminPage.tsx';
 import { ApiDocsPage } from './pages/ApiDocsPage.tsx';
-import { IListing } from '../server/models/types.js';
+import { IListing } from './types.ts';
 import { api } from './services/api.ts';
 import { ShieldCheck, Heart, Github, Sparkles } from 'lucide-react';
 

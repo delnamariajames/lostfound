@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { IListing, ItemCategory, ListingStatus, ListingType } from '../../server/models/types.js';
+import { IListing, ItemCategory, ListingStatus, ListingType } from '../types.ts';
 import { api } from '../services/api.ts';
 import { X, Save, AlertCircle } from 'lucide-react';
 

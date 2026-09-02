@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import { IUser } from '../../server/models/types.js';
+import { IUser } from '../types.ts';
 import { api, authStorage } from '../services/api.ts';
 
 interface AuthContextType {
@@ -19,7 +19,13 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [user, setUser] = useState<IUser | null>(authStorage.getUser());
+  const [user, setUser] = useState<IUser | null>(() => {
+    try {
+      return authStorage.getUser();
+    } catch {
+      return null;
+    }
+  });
   const [loading, setLoading] = useState(true);
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
   const [authModalTab, setAuthModalTab] = useState<'login' | 'signup'>('login');
@@ -29,7 +35,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const currentUser = await api.getCurrentUser();
       setUser(currentUser);
     } catch {
-      setUser(null);
+      // Fallback
     } finally {
       setLoading(false);
     }

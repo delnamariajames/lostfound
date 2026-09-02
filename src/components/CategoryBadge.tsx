@@ -1,5 +1,5 @@
 import React from 'react';
-import { ItemCategory } from '../../server/models/types.js';
+import { ItemCategory } from '../types.ts';
 import { 
   CreditCard, 
   Smartphone, 

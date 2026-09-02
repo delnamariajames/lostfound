@@ -1,5 +1,5 @@
 import React from 'react';
-import { ListingStatus } from '../../server/models/types.js';
+import { ListingStatus } from '../types.ts';
 import { CheckCircle2, Clock, CheckCheck } from 'lucide-react';
 
 interface StatusBadgeProps {
