@@ -1,0 +1,6 @@
+{
+  "name": "Campus Lost & Found Portal",
+  "description": "Full-stack web application to report, search, and claim lost & found items on campus.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
