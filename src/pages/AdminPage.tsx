@@ -42,11 +42,11 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onSelectListing }) => {
       setLoading(true);
       const [statsData, listingsData, usersData] = await Promise.all([
         api.getAdminStats(),
-        api.getAdminListings({ search, status: statusFilter }),
+        api.getAdminListings({ search, status: statusFilter }) as Promise<{ listings: IListing[]; total: number }>,
         api.getAdminUsers(),
       ]);
       setStats(statsData);
-      setListings(listingsData.listings);
+      setListings(listingsData.listings || []);
       setUsers(usersData);
     } catch (err) {
       console.error('Admin data fetch error:', err);
@@ -86,8 +86,8 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onSelectListing }) => {
   const handleAutoResolve = async () => {
     if (confirm(`Run batch resolution for all Open items older than ${autoResolveDays} days?`)) {
       try {
-        const res = await api.autoResolveOld(autoResolveDays);
-        setAutoResolveMessage(res.message);
+        const res: any = await api.autoResolveOld(autoResolveDays);
+        setAutoResolveMessage(res.message || `Archived ${res.modifiedCount ?? 0} stale listings.`);
         fetchAdminData();
       } catch (err: any) {
         alert(err.message || 'Failed to auto-resolve');

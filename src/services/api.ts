@@ -1,4 +1,5 @@
 import { IUser, IListing, IClaim, ItemCategory, ListingStatus, ListingType } from '../../server/models/types.js';
+import { ClientDataStore } from './clientDataStore.js';
 
 const TOKEN_KEY = 'campus_lf_token';
 const USER_KEY = 'campus_lf_user';
@@ -28,14 +29,20 @@ export const authStorage = {
   },
 };
 
+let isStaticMode = false;
+
+export function getIsStaticMode(): boolean {
+  return isStaticMode;
+}
+
 async function fetchWithAuth(url: string, options: RequestInit = {}): Promise<Response> {
   const token = authStorage.getToken();
   const headers = new Headers(options.headers || {});
-  
+
   if (token) {
     headers.set('Authorization', `Bearer ${token}`);
   }
-  
+
   if (!headers.has('Content-Type') && !(options.body instanceof FormData)) {
     headers.set('Content-Type', 'application/json');
   }
@@ -46,62 +53,131 @@ async function fetchWithAuth(url: string, options: RequestInit = {}): Promise<Re
   });
 
   if (response.status === 401) {
-    // If token invalid, clear
     authStorage.clear();
   }
 
   return response;
 }
 
+async function safeFetchJson<T>(url: string, options: RequestInit = {}): Promise<T> {
+  if (isStaticMode) {
+    throw new Error('STATIC_MODE_FALLBACK');
+  }
+
+  try {
+    const res = await fetchWithAuth(url, options);
+    const contentType = res.headers.get('content-type') || '';
+
+    // If server returned HTML (e.g. 404 or index.html SPA catch-all on static hosts), fallback
+    if (!contentType.includes('application/json')) {
+      isStaticMode = true;
+      throw new Error('STATIC_MODE_FALLBACK');
+    }
+
+    const json = await res.json();
+    if (!res.ok) {
+      // If it's a real API 400/409 validation error, throw the actual message
+      if (res.status === 400 || res.status === 409 || res.status === 403 || res.status === 401) {
+        throw new Error(json.error || 'Request failed');
+      }
+      if (res.status === 404 && !url.includes('/api/listings/')) {
+        isStaticMode = true;
+        throw new Error('STATIC_MODE_FALLBACK');
+      }
+      throw new Error(json.error || 'Server error');
+    }
+    return json as T;
+  } catch (err: any) {
+    if (err.message === 'STATIC_MODE_FALLBACK' || err.name === 'TypeError') {
+      isStaticMode = true;
+      throw new Error('STATIC_MODE_FALLBACK');
+    }
+    throw err;
+  }
+}
+
+function convertFileToBase64(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.readAsDataURL(file);
+    reader.onload = () => resolve(reader.result as string);
+    reader.onerror = (error) => reject(error);
+  });
+}
+
 export const api = {
   // --- AUTH ---
   async signup(data: { name: string; email: string; password: string; role?: string; phone?: string }) {
-    const res = await fetchWithAuth('/api/auth/signup', {
-      method: 'POST',
-      body: JSON.stringify(data),
-    });
-    const json = await res.json();
-    if (!res.ok) throw new Error(json.error || 'Signup failed');
-    authStorage.setToken(json.token);
-    authStorage.setUser(json.user);
-    return json;
+    try {
+      const json = await safeFetchJson<{ token: string; user: IUser }>('/api/auth/signup', {
+        method: 'POST',
+        body: JSON.stringify(data),
+      });
+      authStorage.setToken(json.token);
+      authStorage.setUser(json.user);
+      return json;
+    } catch (err: any) {
+      if (err.message === 'STATIC_MODE_FALLBACK') {
+        const result = ClientDataStore.signup(data);
+        authStorage.setToken(result.token);
+        authStorage.setUser(result.user);
+        return result;
+      }
+      throw err;
+    }
   },
 
   async login(data: { email: string; password: string }) {
-    const res = await fetchWithAuth('/api/auth/login', {
-      method: 'POST',
-      body: JSON.stringify(data),
-    });
-    const json = await res.json();
-    if (!res.ok) throw new Error(json.error || 'Login failed');
-    authStorage.setToken(json.token);
-    authStorage.setUser(json.user);
-    return json;
+    try {
+      const json = await safeFetchJson<{ token: string; user: IUser }>('/api/auth/login', {
+        method: 'POST',
+        body: JSON.stringify(data),
+      });
+      authStorage.setToken(json.token);
+      authStorage.setUser(json.user);
+      return json;
+    } catch (err: any) {
+      if (err.message === 'STATIC_MODE_FALLBACK') {
+        const result = ClientDataStore.login(data.email, data.password);
+        authStorage.setToken(result.token);
+        authStorage.setUser(result.user);
+        return result;
+      }
+      throw err;
+    }
   },
 
   async demoLogin(role: 'student' | 'admin' | 'student2') {
-    const res = await fetchWithAuth('/api/auth/demo-login', {
-      method: 'POST',
-      body: JSON.stringify({ role }),
-    });
-    const json = await res.json();
-    if (!res.ok) throw new Error(json.error || 'Demo login failed');
-    authStorage.setToken(json.token);
-    authStorage.setUser(json.user);
-    return json;
+    try {
+      const json = await safeFetchJson<{ token: string; user: IUser }>('/api/auth/demo-login', {
+        method: 'POST',
+        body: JSON.stringify({ role }),
+      });
+      authStorage.setToken(json.token);
+      authStorage.setUser(json.user);
+      return json;
+    } catch (err: any) {
+      if (err.message === 'STATIC_MODE_FALLBACK') {
+        const result = ClientDataStore.demoLogin(role);
+        authStorage.setToken(result.token);
+        authStorage.setUser(result.user);
+        return result;
+      }
+      throw err;
+    }
   },
 
   async getCurrentUser(): Promise<IUser | null> {
     const token = authStorage.getToken();
     if (!token) return null;
+
     try {
-      const res = await fetchWithAuth('/api/auth/me');
-      if (!res.ok) return null;
-      const json = await res.json();
+      const json = await safeFetchJson<{ user: IUser }>('/api/auth/me');
       authStorage.setUser(json.user);
       return json.user;
     } catch {
-      return null;
+      // In static / fallback mode, read from localStorage
+      return authStorage.getUser();
     }
   },
 
@@ -126,17 +202,27 @@ export const api = {
     if (params.userId) query.set('userId', params.userId);
     if (params.sort) query.set('sort', params.sort);
 
-    const res = await fetchWithAuth(`/api/listings?${query.toString()}`);
-    const json = await res.json();
-    if (!res.ok) throw new Error(json.error || 'Failed to fetch listings');
-    return json as { listings: IListing[]; total: number };
+    try {
+      const json = await safeFetchJson<{ listings: IListing[]; total: number }>(`/api/listings?${query.toString()}`);
+      return json;
+    } catch (err: any) {
+      if (err.message === 'STATIC_MODE_FALLBACK') {
+        return ClientDataStore.queryListings(params);
+      }
+      throw err;
+    }
   },
 
   async getListingById(id: string): Promise<IListing> {
-    const res = await fetchWithAuth(`/api/listings/${id}`);
-    const json = await res.json();
-    if (!res.ok) throw new Error(json.error || 'Listing not found');
-    return json.listing;
+    try {
+      const json = await safeFetchJson<{ listing: IListing }>(`/api/listings/${id}`);
+      return json.listing;
+    } catch (err: any) {
+      if (err.message === 'STATIC_MODE_FALLBACK') {
+        return ClientDataStore.getListingById(id);
+      }
+      throw err;
+    }
   },
 
   async createListing(data: {
@@ -149,42 +235,72 @@ export const api = {
     imageUrl?: string;
     contactInfo: { name: string; email: string; phone?: string };
   }) {
-    const res = await fetchWithAuth('/api/listings', {
-      method: 'POST',
-      body: JSON.stringify(data),
-    });
-    const json = await res.json();
-    if (!res.ok) throw new Error(json.error || 'Failed to create listing');
-    return json.listing as IListing;
+    try {
+      const json = await safeFetchJson<{ listing: IListing }>('/api/listings', {
+        method: 'POST',
+        body: JSON.stringify(data),
+      });
+      return json.listing;
+    } catch (err: any) {
+      if (err.message === 'STATIC_MODE_FALLBACK') {
+        let user = authStorage.getUser();
+        if (!user) {
+          user = {
+            _id: 'usr_guest',
+            name: data.contactInfo.name || 'Campus Student',
+            email: data.contactInfo.email || 'student@campus.edu',
+            role: 'student',
+            createdAt: new Date().toISOString(),
+          };
+        }
+        return ClientDataStore.createListing(user, data);
+      }
+      throw err;
+    }
   },
 
   async updateListing(id: string, data: Partial<IListing>) {
-    const res = await fetchWithAuth(`/api/listings/${id}`, {
-      method: 'PUT',
-      body: JSON.stringify(data),
-    });
-    const json = await res.json();
-    if (!res.ok) throw new Error(json.error || 'Failed to update listing');
-    return json.listing as IListing;
+    try {
+      const json = await safeFetchJson<{ listing: IListing }>(`/api/listings/${id}`, {
+        method: 'PUT',
+        body: JSON.stringify(data),
+      });
+      return json.listing;
+    } catch (err: any) {
+      if (err.message === 'STATIC_MODE_FALLBACK') {
+        return ClientDataStore.updateListing(id, data);
+      }
+      throw err;
+    }
   },
 
   async updateListingStatus(id: string, status: ListingStatus) {
-    const res = await fetchWithAuth(`/api/listings/${id}/status`, {
-      method: 'PATCH',
-      body: JSON.stringify({ status }),
-    });
-    const json = await res.json();
-    if (!res.ok) throw new Error(json.error || 'Failed to update status');
-    return json.listing as IListing;
+    try {
+      const json = await safeFetchJson<{ listing: IListing }>(`/api/listings/${id}/status`, {
+        method: 'PATCH',
+        body: JSON.stringify({ status }),
+      });
+      return json.listing;
+    } catch (err: any) {
+      if (err.message === 'STATIC_MODE_FALLBACK') {
+        return ClientDataStore.updateListing(id, { status });
+      }
+      throw err;
+    }
   },
 
   async deleteListing(id: string) {
-    const res = await fetchWithAuth(`/api/listings/${id}`, {
-      method: 'DELETE',
-    });
-    const json = await res.json();
-    if (!res.ok) throw new Error(json.error || 'Failed to delete listing');
-    return json;
+    try {
+      return await safeFetchJson(`/api/listings/${id}`, {
+        method: 'DELETE',
+      });
+    } catch (err: any) {
+      if (err.message === 'STATIC_MODE_FALLBACK') {
+        ClientDataStore.deleteListing(id);
+        return { message: 'Listing deleted successfully' };
+      }
+      throw err;
+    }
   },
 
   // --- CLAIMS ---
@@ -194,99 +310,167 @@ export const api = {
     proofDetails?: string;
     claimantPhone?: string;
   }) {
-    const res = await fetchWithAuth('/api/claims', {
-      method: 'POST',
-      body: JSON.stringify(data),
-    });
-    const json = await res.json();
-    if (!res.ok) throw new Error(json.error || 'Failed to submit claim');
-    return json.claim as IClaim;
+    try {
+      const json = await safeFetchJson<{ claim: IClaim }>('/api/claims', {
+        method: 'POST',
+        body: JSON.stringify(data),
+      });
+      return json.claim;
+    } catch (err: any) {
+      if (err.message === 'STATIC_MODE_FALLBACK') {
+        let user = authStorage.getUser();
+        if (!user) {
+          user = {
+            _id: 'usr_guest',
+            name: 'Campus Member',
+            email: 'claimant@campus.edu',
+            role: 'student',
+            createdAt: new Date().toISOString(),
+          };
+        }
+        return ClientDataStore.submitClaim(user, data);
+      }
+      throw err;
+    }
   },
 
   async getMyClaims() {
-    const res = await fetchWithAuth('/api/claims/my-claims');
-    const json = await res.json();
-    if (!res.ok) throw new Error(json.error || 'Failed to fetch claims');
-    return json.claims as IClaim[];
+    try {
+      const json = await safeFetchJson<{ claims: IClaim[] }>('/api/claims/my-claims');
+      return json.claims;
+    } catch (err: any) {
+      if (err.message === 'STATIC_MODE_FALLBACK') {
+        const user = authStorage.getUser();
+        if (!user) return [];
+        return ClientDataStore.getMyClaims(user._id);
+      }
+      throw err;
+    }
   },
 
   async getReceivedClaims() {
-    const res = await fetchWithAuth('/api/claims/received');
-    const json = await res.json();
-    if (!res.ok) throw new Error(json.error || 'Failed to fetch received claims');
-    return json.claims as IClaim[];
+    try {
+      const json = await safeFetchJson<{ claims: IClaim[] }>('/api/claims/received');
+      return json.claims;
+    } catch (err: any) {
+      if (err.message === 'STATIC_MODE_FALLBACK') {
+        const user = authStorage.getUser();
+        if (!user) return [];
+        return ClientDataStore.getReceivedClaims(user._id);
+      }
+      throw err;
+    }
   },
 
   async updateClaimStatus(claimId: string, status: 'accepted' | 'rejected', responseNote?: string) {
-    const res = await fetchWithAuth(`/api/claims/${claimId}/status`, {
-      method: 'PATCH',
-      body: JSON.stringify({ status, responseNote }),
-    });
-    const json = await res.json();
-    if (!res.ok) throw new Error(json.error || 'Failed to update claim');
-    return json as { claim: IClaim; listing?: IListing };
+    try {
+      return await safeFetchJson<{ claim: IClaim; listing?: IListing }>(`/api/claims/${claimId}/status`, {
+        method: 'PATCH',
+        body: JSON.stringify({ status, responseNote }),
+      });
+    } catch (err: any) {
+      if (err.message === 'STATIC_MODE_FALLBACK') {
+        return ClientDataStore.updateClaimStatus(claimId, status, responseNote);
+      }
+      throw err;
+    }
   },
 
   // --- ADMIN ---
   async getAdminStats() {
-    const res = await fetchWithAuth('/api/admin/stats');
-    const json = await res.json();
-    if (!res.ok) throw new Error(json.error || 'Failed to fetch admin stats');
-    return json.stats;
+    try {
+      const json = await safeFetchJson<{ stats: any }>('/api/admin/stats');
+      return json.stats;
+    } catch (err: any) {
+      if (err.message === 'STATIC_MODE_FALLBACK') {
+        return ClientDataStore.getAdminStats();
+      }
+      throw err;
+    }
   },
 
   async getAdminListings(params: Record<string, string> = {}) {
     const query = new URLSearchParams(params);
-    const res = await fetchWithAuth(`/api/admin/listings?${query.toString()}`);
-    const json = await res.json();
-    if (!res.ok) throw new Error(json.error || 'Failed to fetch admin listings');
-    return json;
+    try {
+      return await safeFetchJson(`/api/admin/listings?${query.toString()}`);
+    } catch (err: any) {
+      if (err.message === 'STATIC_MODE_FALLBACK') {
+        const res = ClientDataStore.queryListings(params);
+        return { listings: res.listings, total: res.total, totalPages: 1 };
+      }
+      throw err;
+    }
   },
 
   async getAdminUsers() {
-    const res = await fetchWithAuth('/api/admin/users');
-    const json = await res.json();
-    if (!res.ok) throw new Error(json.error || 'Failed to fetch users');
-    return json.users as IUser[];
+    try {
+      const json = await safeFetchJson<{ users: IUser[] }>('/api/admin/users');
+      return json.users;
+    } catch (err: any) {
+      if (err.message === 'STATIC_MODE_FALLBACK') {
+        return ClientDataStore.getAllUsers();
+      }
+      throw err;
+    }
   },
 
   async autoResolveOld(days: number) {
-    const res = await fetchWithAuth('/api/admin/auto-resolve', {
-      method: 'POST',
-      body: JSON.stringify({ days }),
-    });
-    const json = await res.json();
-    if (!res.ok) throw new Error(json.error || 'Failed to execute auto resolve');
-    return json;
+    try {
+      return await safeFetchJson('/api/admin/auto-resolve', {
+        method: 'POST',
+        body: JSON.stringify({ days }),
+      });
+    } catch (err: any) {
+      if (err.message === 'STATIC_MODE_FALLBACK') {
+        return ClientDataStore.autoResolveOld(days);
+      }
+      throw err;
+    }
   },
 
   async adminDeleteListing(id: string) {
-    const res = await fetchWithAuth(`/api/admin/listings/${id}`, {
-      method: 'DELETE',
-    });
-    const json = await res.json();
-    if (!res.ok) throw new Error(json.error || 'Failed to delete listing');
-    return json;
+    try {
+      return await safeFetchJson(`/api/admin/listings/${id}`, {
+        method: 'DELETE',
+      });
+    } catch (err: any) {
+      if (err.message === 'STATIC_MODE_FALLBACK') {
+        ClientDataStore.deleteListing(id);
+        return { message: 'Listing deleted' };
+      }
+      throw err;
+    }
   },
 
   // --- FILE UPLOAD ---
   async uploadImage(file: File): Promise<string> {
-    const formData = new FormData();
-    formData.append('image', file);
-    const res = await fetchWithAuth('/api/upload', {
-      method: 'POST',
-      body: formData,
-    });
-    const json = await res.json();
-    if (!res.ok) throw new Error(json.error || 'Failed to upload image');
-    return json.imageUrl;
+    try {
+      const formData = new FormData();
+      formData.append('image', file);
+      const res = await fetchWithAuth('/api/upload', {
+        method: 'POST',
+        body: formData,
+      });
+      const contentType = res.headers.get('content-type') || '';
+      if (!contentType.includes('application/json')) {
+        throw new Error('STATIC_FALLBACK');
+      }
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error || 'Failed to upload image');
+      return json.imageUrl;
+    } catch {
+      // In static / client mode or if server upload failed, generate a base64 data URL
+      return await convertFileToBase64(file);
+    }
   },
 
   // --- RESET SEED ---
   async resetSeed() {
-    const res = await fetchWithAuth('/api/seed', {
-      method: 'POST',
-    });
-    return res.json();
+    try {
+      return await safeFetchJson('/api/seed', { method: 'POST' });
+    } catch {
+      ClientDataStore.resetToSeed();
+      return { message: 'Reset to sample seed data in client storage' };
+    }
   },
 };

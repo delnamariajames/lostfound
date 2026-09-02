@@ -301,6 +301,41 @@ export const ApiDocsPage: React.FC = () => {
             </div>
           </div>
         ))}
+
+        {/* Deployment & Architecture Notice */}
+        <div className="bg-gradient-to-r from-slate-900 to-slate-800 text-white rounded-2xl p-6 shadow-sm space-y-4">
+          <div className="flex items-center gap-3">
+            <div className="w-9 h-9 rounded-xl bg-teal-500/20 text-teal-300 flex items-center justify-center border border-teal-500/30">
+              <Database size={20} />
+            </div>
+            <div>
+              <h3 className="text-sm font-bold text-white">Deployment & Architecture Guide</h3>
+              <p className="text-xs text-slate-400">Supported deployment environments for this project</p>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs text-slate-300">
+            <div className="p-4 rounded-xl bg-white/5 border border-white/10 space-y-2">
+              <h4 className="font-semibold text-teal-400 flex items-center gap-1.5">
+                <span className="w-2 h-2 rounded-full bg-teal-400"></span>
+                GitHub Pages (Static Hosting)
+              </h4>
+              <p className="text-slate-300 leading-relaxed">
+                The build includes relative asset base paths (<code className="text-teal-300">base: './'</code>) and an automatic client-side storage fallback. When deployed to GitHub Pages, all UI listings, searches, claim submissions, and admin tools run client-side without crashing.
+              </p>
+            </div>
+
+            <div className="p-4 rounded-xl bg-white/5 border border-white/10 space-y-2">
+              <h4 className="font-semibold text-emerald-400 flex items-center gap-1.5">
+                <span className="w-2 h-2 rounded-full bg-emerald-400"></span>
+                Node.js Full-Stack (Render / Railway / Cloud Run)
+              </h4>
+              <p className="text-slate-300 leading-relaxed">
+                To run the live Express backend and MongoDB server, deploy to a Node.js runtime host using the start command <code className="text-emerald-300">npm start</code> or <code className="text-emerald-300">node server.ts</code>.
+              </p>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   );
