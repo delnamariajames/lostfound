@@ -83,7 +83,7 @@ function aistudioMediaPlugin(): Plugin {
 
 export default defineConfig(() => {
   return {
-    base: './',
+    base: '/lostfound/',
     plugins: [react(), tailwindcss(), expressApiPlugin(), aistudioMediaPlugin()],
     resolve: {
       alias: {
