@@ -83,7 +83,7 @@ function aistudioMediaPlugin(): Plugin {
 
 export default defineConfig(() => {
   return {
-   // base: '/lostfound/',
+    base: process.env.GITHUB_ACTIONS ?
     plugins: [react(), tailwindcss(), expressApiPlugin(), aistudioMediaPlugin()],
     resolve: {
       alias: {
